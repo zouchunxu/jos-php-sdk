@@ -1,0 +1,20 @@
+{
+    "name": "zycx/jos-php-sdk",
+	"description": "京东php接口sdk",
+	"license":"apache v2",
+    "authors": [
+        {
+            "name": "sanwv",
+            "email": "sanwv@163.com"
+        }
+    ],
+    "require": {
+    	"php": ">=5.4.0"
+    },
+    "autoload":{
+    	"classmap":["jos/"],
+    	"psr-4": { 
+   			"Zycx\\Jd\\Jos\\Stream\\": "stream/"
+   		}
+    }
+}
