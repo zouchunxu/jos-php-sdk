@@ -13,8 +13,12 @@ class JosClient
 
     public $format = 'json';
     
+    // 执行超时时间
+    public $timeout = 60;
     // 请求超时时间
-    public $timeout = 30;
+    public $connectionTimeout = 5;
+
+    public $retryCount = 3;
 
     public function execute(JosRequest $request, $token = null)
     {
@@ -92,6 +96,7 @@ class JosClient
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_FAILONERROR, false);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->connectionTimeout);
         curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
         
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -101,8 +106,13 @@ class JosClient
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
         }
-        $reponse = curl_exec($ch);
-        $errorno = curl_errno($ch);
+        $retryCount = - 1;
+        do { // 重试机制
+            $reponse = curl_exec($ch);
+            $errorno = curl_errno($ch);
+            $retryCount ++;
+        } while ($errorno == 28 && $retryCount < $this->retryCount);
+        
         if ($errorno) {
             throw new JosSdkException(curl_error($ch), JosSdkException::CODE_REQ_ERROR, $errorno);
         }
