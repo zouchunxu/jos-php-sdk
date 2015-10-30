@@ -35,22 +35,34 @@ class JosClient
         $params['360buy_param_json'] = $request->getAppJsonParams();
         //
         // $requestUrl = $this->gatewayUrl . '?' . http_build_query($params);
-        //
-        $raw = $this->send($this->gatewayUrl, $params);
-        //
-        $json = self::jsonDecode($raw);
-        //
-        if (null !== $json) {
-            foreach ($json as $val) {
-                $json = $val;
+        $retryCount = - 1;
+        do { // 重试机制
+            $raw = $this->send($this->gatewayUrl, $params);
+            $json = self::jsonDecode($raw);
+            if ($json) {
+                foreach ($json as $val) {
+                    $json = $val;
+                }
+                if (! isset($json->code, $json->zh_desc, $json->en_desc)) { // 没错误直接返回数据
+                    return $json;
+                } else { // 像合作类型错误之类虽然请求正常但依然有可能报错的也重试几次
+                    if (! in_array($json->code, [
+                        '10100046'
+                    ], true)) { // 其他致命错误直接返回异常
+                        throw new JosException($json->zh_desc, $json->en_desc, $json->code);
+                    }
+                }
+            } else {
+                // 有时京东会返回错误的html错误信息,多试几次
             }
-        } else {
+            $retryCount ++;
+        } while ($retryCount < $this->retryCount);
+        // 重试了依然有错误
+        if (! $json) {
             throw new JosSdkException('京东API返回数据无法解析', JosSdkException::CODE_PARSE_ERROR, $raw);
-        }
-        if (isset($json->code, $json->zh_desc, $json->en_desc)) {
+        } else {
             throw new JosException($json->zh_desc, $json->en_desc, $json->code);
         }
-        return $json;
     }
 
     protected static function jsonDecode($str)
