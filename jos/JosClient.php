@@ -45,9 +45,10 @@ class JosClient
                 }
                 if (! isset($json->code, $json->zh_desc, $json->en_desc)) { // 没错误直接返回数据
                     return $json;
-                } else { // 像合作类型错误之类虽然请求正常但依然有可能报错的也重试几次
+                } else {
                     if (! in_array($json->code, [
-                        '10100046'
+                        '10100046',//有时类型完全正确也会返回合作类型不正确
+                        '67'//平台连接后端服务不可用
                     ], true)) { // 其他致命错误直接返回异常
                         throw new JosException($json->zh_desc, $json->en_desc, $json->code);
                     }
