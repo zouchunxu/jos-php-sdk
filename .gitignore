@@ -3,5 +3,6 @@
 .project
 .settings
 samples/config.php
+samples/common/config.php
 /vendor/
 
