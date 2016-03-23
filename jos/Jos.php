@@ -57,7 +57,7 @@ class Jos extends JosClient
         $json = self::jsonDecode($json);
         
         if (isset($json->code, $json->error_description)) {
-            throw new JosException($json->error_description, $json->error_description);
+            throw new JosException($json->error_description, $json->error_description, 0);
         }
         return $json;
     }
