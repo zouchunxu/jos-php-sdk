@@ -47,10 +47,11 @@ class JosClient
                     return $json;
                 } else {
                     if (! in_array($json->code, [
-                        '1',//系统错误反复试几次也会正常
-                        '10100046',//有时类型完全正确也会返回合作类型不正确
-                        '67'//平台连接后端服务不可用
-                    ], true)) { // 其他致命错误直接返回异常
+                        '1', // 系统错误反复试几次也会正常
+                        '10100046', // 有时类型完全正确也会返回合作类型不正确
+                        '67'
+                    ], // 平台连接后端服务不可用
+true)) { // 其他致命错误直接返回异常
                         throw new JosException($json->zh_desc, $json->en_desc, $json->code);
                     }
                 }
@@ -115,6 +116,7 @@ class JosClient
         
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
         
         if (is_array($postFields) && ! empty($postFields)) {
             curl_setopt($ch, CURLOPT_POST, true);
