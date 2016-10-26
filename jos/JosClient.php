@@ -106,7 +106,7 @@ class JosClient
     protected static function parseResponse($data)
     {
         $json = self::jsonDecode($data);
-        if (is_array($json)) {
+        if ($json) {
             foreach ($json as $val) {
                 $json = $val;
             }
