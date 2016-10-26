@@ -14,57 +14,109 @@ class JosClient
     public $format = 'json';
     
     // 执行超时时间
-    public $timeout = 60;
+    public $timeout = 65;
     // 请求超时时间
-    public $connectionTimeout = 5;
+    public $connectionTimeout = 10;
 
-    public $retryCount = 3;
+    public $retryCount = 6;
+
+    public $josRetryCodes = [
+        1,
+        66,
+        67,
+        10100046
+    ];
 
     public function execute(JosRequest $request, $token = null)
     {
-        // 系统参数
-        $params['method'] = $request->getApiMethod();
+        $params = [
+            'method' => $request->getApiMethod(),
+            'app_key' => $this->appkey,
+            'format' => $this->format,
+            'v' => $this->apiVersion,
+            'timestamp' => date('Y-m-d H:i:s'),
+            '360buy_param_json' => $request->getAppJsonParams()
+        ];
         if ($token !== null) {
             $params['access_token'] = $token;
         }
-        $params['app_key'] = $this->appkey;
-        $params['timestamp'] = date('Y-m-d H:i:s');
-        $params['format'] = $this->format;
-        $params['v'] = $this->apiVersion;
-        // 业务参数
-        $params['360buy_param_json'] = $request->getAppJsonParams();
+        $params['sign'] = $this->generateSign($params);
         //
-        // $requestUrl = $this->gatewayUrl . '?' . http_build_query($params);
-        $retryCount = - 1;
-        do { // 重试机制
-            $raw = $this->send($this->gatewayUrl, $params);
-            $json = self::jsonDecode($raw);
-            if ($json) {
-                foreach ($json as $val) {
-                    $json = $val;
+        $ch = $this->getCurl($this->gatewayUrl, $params);
+        $retryCount = $this->retryCount;
+        while (true) {
+            try {
+                $reponse = curl_exec($ch);
+                $errorno = curl_errno($ch);
+                if ($errorno) {
+                    $e = new JosSdkException(curl_error($ch), JosSdkException::CODE_NET_ERROR, $reponse);
+                    $e->netErrorNo = $errorno;
+                    throw $e;
                 }
-                if (! isset($json->code, $json->zh_desc, $json->en_desc)) { // 没错误直接返回数据
-                    return $json;
-                } else {
-                    if (! in_array($json->code, [
-                        '1', // 系统错误反复试几次也会正常
-                        '10100046', // 有时类型完全正确也会返回合作类型不正确
-                        '67'
-                    ], // 平台连接后端服务不可用
-true)) { // 其他致命错误直接返回异常
-                        throw new JosException($json->zh_desc, $json->en_desc, $json->code);
-                    }
+                $reponse = self::parseResponse($reponse);
+                curl_close($ch);
+                return $reponse;
+            } catch (Exception $e) {
+                if (-- $retryCount || ! $this->isRetryException($e)) {
+                    throw $e;
                 }
-            } else {
-                // 有时京东会返回错误的html错误信息,多试几次
             }
-            $retryCount ++;
-        } while ($retryCount < $this->retryCount);
-        // 重试了依然有错误
-        if (! $json) {
-            throw new JosSdkException('京东API返回数据无法解析', JosSdkException::CODE_PARSE_ERROR, $raw);
+        }
+        return $this->send($this->gatewayUrl, $params, false);
+    }
+
+    /**
+     * 签名
+     *
+     * @param $params 业务参数            
+     * @return void
+     */
+    protected function generateSign($params)
+    {
+        if ($params != null) {
+            ksort($params);
+            $stringToBeSigned = $this->secretKey;
+            foreach ($params as $k => $v) {
+                $stringToBeSigned .= "$k$v";
+            }
+            unset($k, $v);
+            $stringToBeSigned .= $this->secretKey;
         } else {
-            throw new JosException($json->zh_desc, $json->en_desc, $json->code);
+            $stringToBeSigned = $this->secretKey;
+            $stringToBeSigned .= $this->secretKey;
+        }
+        return strtoupper(md5($stringToBeSigned));
+    }
+
+    protected function isRetryException(\Exception $e)
+    {
+        $code = intval($e->getCode());
+        if ($e instanceof JosException) {
+            if (in_array($code, $this->josRetryCodes, true)) {
+                return true;
+            }
+        } elseif ($e instanceof JosSdkException) {
+            if ($code == JosSdkException::CODE_NET_ERROR) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected static function parseResponse($data)
+    {
+        $json = self::jsonDecode($data);
+        if (is_array($json)) {
+            foreach ($json as $val) {
+                $json = $val;
+            }
+            if (! isset($json->code, $json->zh_desc, $json->en_desc)) { // 没有错误
+                return $json;
+            } else {
+                throw new JosException($json->zh_desc, $json->en_desc, $json->code);
+            }
+        } else {
+            throw new JosSdkException('返回的数据无法解析', JosSdkException::CODE_PARSE_ERROR, $data);
         }
     }
 
@@ -86,7 +138,7 @@ true)) { // 其他致命错误直接返回异常
         
         $json = json_decode($str, false, 512, JSON_BIGINT_AS_STRING);
         if ($json === null) {
-            return $json;
+            return null;
         }
         // 京东同一个字段有时返回int型有时返回string型，在这里统一为string
         self::int2String($json);
@@ -105,7 +157,7 @@ true)) { // 其他致命错误直接返回异常
         }
     }
 
-    protected function send($url, $postFields = null)
+    protected function getCurl($url, $post = null)
     {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
@@ -118,21 +170,10 @@ true)) { // 其他致命错误直接返回异常
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
         curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
         
-        if (is_array($postFields) && ! empty($postFields)) {
+        if (is_array($post) && ! empty($post)) {
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
         }
-        $retryCount = - 1;
-        do { // 重试机制
-            $reponse = curl_exec($ch);
-            $errorno = curl_errno($ch);
-            $retryCount ++;
-        } while ($errorno == 28 && $retryCount < $this->retryCount);
-        
-        if ($errorno) {
-            throw new JosSdkException(curl_error($ch), JosSdkException::CODE_REQ_ERROR, $errorno);
-        }
-        curl_close($ch);
-        return $reponse;
+        return $ch;
     }
 }

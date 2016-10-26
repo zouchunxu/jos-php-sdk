@@ -52,14 +52,21 @@ class Jos extends JosClient
             'scope' => 'read',
             'state' => ''
         );
-        $json = $this->send($this->tokenUrl . '?' . http_build_query($param));
-        $json = iconv('gbk', 'utf-8', $json);
-        $json = self::jsonDecode($json);
-        
-        if (isset($json->code, $json->error_description)) {
-            throw new JosException($json->error_description, $json->error_description, 0);
+        $ch = $this->getCurl($this->tokenUrl . '?' . http_build_query($param));
+        $reponse = curl_exec($ch);
+        $errorno = curl_errno($ch);
+        if ($errorno) {
+            $e = new JosSdkException(curl_error($ch), JosSdkException::CODE_NET_ERROR, $reponse);
+            $e->netErrorNo = $errorno;
+            throw $e;
         }
-        return $json;
+        $reponse = iconv('gbk', 'utf-8', $reponse);
+        curl_close($ch);
+        $reponse = self::jsonDecode($reponse);
+        if (isset($reponse->code, $reponse->error_description)) {
+            throw new JosException($reponse->error_description, $reponse->error_description, 0);
+        }
+        return $reponse;
     }
 
     /**
