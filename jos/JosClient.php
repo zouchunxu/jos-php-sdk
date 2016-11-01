@@ -99,6 +99,11 @@ class JosClient
             if ($code == JosSdkException::CODE_NET_ERROR) {
                 return true;
             }
+            
+            if ($code == JosSdkException::CODE_PARSE_ERROR) {
+                return true;
+            }
+
         }
         return false;
     }
