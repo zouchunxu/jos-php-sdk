@@ -11,7 +11,8 @@ class JosSdkException extends \Exception
     const CODE_NET_ERROR = 1;
     // 京东返回的数据无法解析
     const CODE_PARSE_ERROR = 2;
-
+    // 后端连接不可以
+    const CODE_LINK_ERROR = 66;
     /**
      * 附加原始信息
      *
