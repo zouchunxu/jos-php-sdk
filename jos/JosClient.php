@@ -57,7 +57,7 @@ class JosClient
                 curl_close($ch);
                 return $reponse;
             } catch (Exception $e) {
-                if (-- $retryCount || ! $this->isRetryException($e)) {
+                if (! (-- $retryCount) || ! $this->isRetryException($e)) {
                     throw $e;
                 }
             }
