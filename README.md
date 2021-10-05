@@ -15,9 +15,6 @@ v2版适用php5.4以上，非php5.4有使用说明
 /jos/exception/JosSdkException.php api客户端异常类
 /jos/exception/JosException.php api返回错误异常
 ```
-错误请反馈
--------------
-QQ：347513004
 
 快速使用
 ---------
